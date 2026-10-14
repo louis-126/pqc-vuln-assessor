@@ -1,0 +1,28 @@
+# OpenSSL native PQC: EVP boundary plus FIPS 203/204/205 core routines.
+lang = "c"
+
+entry_points = [
+    # Public EVP KEM boundary
+    "EVP_PKEY_decapsulate",
+    "EVP_PKEY_encapsulate",
+
+    # ML-KEM (FIPS 203)
+    "ossl_ml_kem_genkey",
+    "ossl_ml_kem_parse_public_key",
+    "ossl_ml_kem_parse_private_key",
+    "ossl_ml_kem_encap_rand",
+    "ossl_ml_kem_decap",
+
+    # ML-DSA (FIPS 204)
+    "ossl_ml_dsa_generate_key",
+    "ossl_ml_dsa_pk_decode",
+    "ossl_ml_dsa_sk_decode",
+    "ossl_ml_dsa_sig_decode",
+    "ossl_ml_dsa_sign",
+    "ossl_ml_dsa_verify",
+
+    # SLH-DSA (FIPS 205)
+    "ossl_slh_dsa_generate_key",
+    "ossl_slh_dsa_sign",
+    "ossl_slh_dsa_verify",
+]

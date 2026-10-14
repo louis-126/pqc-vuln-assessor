@@ -1,0 +1,90 @@
+# Botan (C++) — FULL post-quantum surface of Botan 3.12.0.
+#   Lattice:     ML-KEM/Kyber (FIPS 203), ML-DSA/Dilithium (FIPS 204), FrodoKEM
+#   Hash-based:  SLH-DSA/SPHINCS+ (FIPS 205), XMSS (RFC 8391), HSS/LMS (RFC 8554)
+#   Code-based:  Classic McEliece (NIST round 4)
+#   Hybrid:      PQC + classical KEM combiner
+# Entry points are curated against src/lib/pubkey/* and map to the bug classes
+# surfaced in the project analysis: implicit-rejection selection, ciphertext/key
+# parsing, KyberSlash-style compression, ML-DSA rejection sampling, signature/hint
+# decoding, signing-nonce derivation, hash-based one-time-key state, and KEM
+# combiner/downgrade paths. Every symbol below was verified to RESOLVE to the
+# intended algorithm's source with the tool's own resolver (0 off-target).
+lang = "cpp"
+
+entry_points = [
+    # --- ML-KEM / Kyber: decapsulation + IND-CPA core ---
+    "Kyber_PrivateKey",
+    "decapsulate",
+    "ML_KEM_Decryptor",          # ml_kem/ml_kem_impl.cpp — decaps + implicit rejection
+    "Kyber_KEM_Decryptor",       # kyber_round3 decaps path
+    "indcpa_decrypt",            # kyber_keys.cpp — IND-CPA decrypt core
+    "conditional_copy_mem",      # CT select of real vs implicit-rejection secret
+
+    # --- ML-KEM / Kyber: parsing + key import (malformed-input surface) ---
+    "decode_keypair",            # kyber_keys.cpp — key import (line-51 unpoison finding)
+    "decompress_ciphertext",     # kyber_algos.cpp — ciphertext length/format check
+    "byte_decode",               # coefficient decode + range validation
+    "validate_public_key_length",
+
+    # --- ML-KEM / Kyber: compression (KyberSlash variable-time division class) ---
+    # The bare name "compress" mis-resolved to Botan's generic data-compression
+    # module (zlib/bzip2 wrapper) — 21 hits drowned the real Kyber helper. Anchor
+    # on the uniquely-named Kyber function that applies compress<d> to poly coeffs.
+    "poly_compress_and_encode",  # kyber_algos.cpp:37 — applies the KyberSlash compress<d>
+
+    # --- ML-DSA / Dilithium: signature verify + sign cores + parsing ---
+    # NOTE: the generic names "verify_message" and "is_valid_signature" mis-resolved
+    # (to pubkey.cpp's PK_Verifier base and to hss_lms.cpp — the WRONG algorithm),
+    # so they were replaced with the uniquely-named Dilithium operation classes,
+    # which anchor the real ML-DSA verify/sign code in dilithium.cpp.
+    "Dilithium_PublicKey",
+    "Dilithium_Verification_Operation",  # dilithium.cpp:250 — ML-DSA verify core
+    "Dilithium_Signature_Operation",     # dilithium.cpp:130 — ML-DSA sign core
+    "decode_signature",          # signature parse
+    "hint_unpack",               # hint decode (strong-unforgeability surface)
+
+    # --- ML-DSA / Dilithium: rejection sampling of secret polynomials (timing) ---
+    "sample_uniform_eta",        # dilithium_algos.cpp — secret sampling
+    "coeff_from_halfbyte",       # rejection-sampling inner loop
+    "expand_s",                  # expands secret polys s1/s2
+
+    # --- ML-DSA / Dilithium: key import + norm/hint arithmetic ---
+    "expand_keypair",            # key expansion / import validation
+    "decode_public_key",
+    "infinity_norm_within_bound",# rejection-bound norm check
+    "make_hint",
+    "decompose",
+
+    # --- ML-DSA / Dilithium: signing-nonce derivation (hedged vs R3 reuse) ---
+    "H_maybe_randomized",        # mask/nonce seed — hedging defeats RNG reuse
+
+    # --- SLH-DSA / SPHINCS+ (FIPS 205) — stateless hash-based signature ---
+    "SphincsPlus_Verification_Operation",  # sphincsplus.cpp — SLH-DSA verify core
+    "SphincsPlus_Signature_Operation",     # sphincsplus.cpp — SLH-DSA sign core
+    "SphincsPlus_PublicKeyInternal",       # key parse / import
+    "wots_sign_and_pkgen",       # sp_xmss.cpp — WOTS+ (FIPS 205 Alg 6/7)
+    "fors_sign_and_pkgen",       # sp_fors.cpp — FORS (few-time sig) sign/pkgen
+
+    # --- FrodoKEM (NIST alternate) — LWE KEM ---
+    "Frodo_KEM_Decryptor",       # frodokem.cpp — raw_kem_decrypt (decaps)
+    "Frodo_KEM_Encryptor",       # frodokem.cpp — raw_kem_encrypt (encaps)
+    "FrodoKEM_PrivateKey",       # key import / decode
+
+    # --- Classic McEliece (NIST round 4) — code-based KEM ---
+    "Classic_McEliece_Decryptor",# cmce_decaps.h — decapsulation
+    "Classic_McEliece_Encryptor",# cmce_encaps.h — encapsulation
+    "compute_goppa_syndrome",    # cmce_decaps.cpp — Goppa syndrome / decode path
+
+    # --- XMSS (RFC 8391) — stateful hash-based signature ---
+    "XMSS_Signature_Operation",  # xmss_signature_operation.cpp — sign (state advance)
+    "XMSS_Verification_Operation",# xmss_verification_operation.cpp — verify
+
+    # --- HSS/LMS (RFC 8554) — stateful hash-based signature ---
+    "HSS_LMS_Verification_Operation",  # hss_lms.cpp — verify
+    "HSS_LMS_Signature_Operation",     # hss_lms.cpp — sign (one-time-key state)
+    "LMS_PublicKey",             # hss_lms.cpp — LMS layer public key
+
+    # --- Hybrid KEM — PQC + classical combiner (downgrade / combiner bugs) ---
+    "Hybrid_PublicKey",          # hybrid_kem.cpp — combined pubkey
+    "Hybrid_PrivateKey",         # hybrid_kem.cpp — combined privkey / KEM combine
+]

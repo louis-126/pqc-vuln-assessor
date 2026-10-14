@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% set active = 'new' %}
+{% block body %}
+<div class="index-layout">
+  <!-- ------- sidebar: header + help & reference dropdowns ------- -->
+  <aside class="sidebar-help">
+    <div class="sidebar-header-card">
+      <h2>Scan a post-quantum crypto implementation</h2>
+      <p class="sub">Point it at a library's source — a GitHub repo or a local folder.
+         The tool detects which library it is, then runs an evidence-grounded hunt
+         for PQC vulnerability classes.</p>
+    </div>
+
+    <details class="help how">
+      <summary>ⓘ New here? How a scan works</summary>
+      <div class="help-body">
+        <ol class="steps">
+          <li><strong>Point at the source.</strong> Paste a GitHub URL, or a local folder path (drag one in).</li>
+          <li><strong>Detect the library.</strong> Click <em>Detect library</em> — it reads function names to identify it (e.g. Botan, wolfSSL).</li>
+          <li><strong>Run &amp; read.</strong> The scan streams progress, then opens a report with CWE/CVSS findings.</li>
+        </ol>
+        <p class="muted small">Defaults are safe: local <strong>Ollama</strong> backend, <strong>agent-review</strong> mode.</p>
+      </div>
+    </details>
+
+    <!-- ------- reference: modes, backends, discovery passes ------- -->
+    <details class="help ref">
+      <summary>ⓘ Reference — modes &amp; options</summary>
+      <div class="help-body">
+
+        <div class="ref-h">Modes</div>
+        <div class="ref-block">
+          <div class="ref-item">
+            <div class="ref-title"><code>reason</code></div>
+            <div class="ref-desc">Single model pass without verification tools.</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>agent</code></div>
+            <div class="ref-desc">Drives read-only tools to confirm hypotheses.</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>agent-review</code> <span class="pill-def">default</span></div>
+            <div class="ref-desc">Investigator hunts, separate reviewer re-checks every verdict. Highest trust.</div>
+          </div>
+        </div>
+
+        <div class="ref-h">AI Providers</div>
+        <div class="ref-block">
+          <div class="ref-item">
+            <div class="ref-title"><code>ollama</code> <span class="pill-def">default</span></div>
+            <div class="ref-desc">Runs <strong>locally</strong> — private, free, no API key required.</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>anthropic</code></div>
+            <div class="ref-desc">Anthropic's <strong>cloud API</strong> — needs <code>ANTHROPIC_API_KEY</code>.</div>
+          </div>
+        </div>
+
+        <div class="ref-h">Discovery passes</div>
+        <div class="ref-block">
+          <div class="ref-item">
+            <div class="ref-title"><code>default</code></div>
+            <div class="ref-desc">KEM + signatures + sampling</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>kem</code></div>
+            <div class="ref-desc">FO implicit rejection, timing leaks</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>sig</code></div>
+            <div class="ref-desc">Malleable signatures, norm bounds</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>sampling</code></div>
+            <div class="ref-desc">Modulo bias, weak RNG, reduction</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>pki</code></div>
+            <div class="ref-desc">Cert-path / OCSP / keystore (Java)</div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-title"><code>all</code></div>
+            <div class="ref-desc">Every surface</div>
+          </div>
+        </div>
+
+      </div>
+    </details>
+  </aside>
+
+  <!-- ------- main scan tool area ------- -->
+  <main class="main-tool">
+    <div class="grid">
+      <!-- ------- source selection ------- -->
+      <div class="card">
+        <div class="card-h">1 · Source</div>
+        <div class="tabs" id="source-tabs">
+          <button class="tab active" data-kind="github">GitHub URL</button>
+          <button class="tab" data-kind="path">Local folder</button>
+        </div>
+
+        <div class="tab-pane active" data-pane="github">
+          <label>Repository URL</label>
+          <input type="text" id="github-url" placeholder="https://github.com/randombit/botan">
+          
+          <label style="margin-top:10px">Release / Tag / Branch <span class="tip" title="Pick a release tag or type a branch name (e.g. v3.4.0, v5.9.1, main).">ⓘ</span> <span class="muted">(optional)</span></label>
+          <select id="github-ref-select">
+            <option value="" selected>— default branch (latest) —</option>
+            <option value="__custom__">other (type tag/branch/commit)…</option>
+          </select>
+          <input type="text" id="custom-github-ref" class="hidden" placeholder="e.g. v3.4.0 or wolfssl-5.7.0-stable" style="margin-top:6px">
+
+          <p class="hint">Shallow-cloned locally. Nothing is uploaded anywhere.</p>
+        </div>
+
+        <div class="tab-pane" data-pane="path" id="path-pane">
+          <label>Absolute path to source tree</label>
+          <input type="text" id="local-path" placeholder="/path/to/source/tree">
+          <div id="path-dropzone" class="dropzone compact">
+            <div class="dz-inner">
+              <div class="dz-icon">📁</div>
+              <div><button type="button" id="browse-btn" class="link">Browse for a folder…</button>
+                or drag a file/folder path here</div>
+            </div>
+          </div>
+          <p class="hint" id="drop-hint">Zero-copy — scanned in place. Dragging a file/folder places its full absolute path.</p>
+        </div>
+
+        <button id="detect-btn" class="btn">Detect library →</button>
+      </div>
+
+      <!-- ------- library + options ------- -->
+      <div class="card">
+        <div class="card-h">2 · Library &amp; options</div>
+
+        <div id="detect-result" class="detect-box hidden"></div>
+
+        <label>Library <span class="tip" title="Which crypto library this source is. Picks the curated entry points the scanner anchors on. Use Detect to fill this automatically.">ⓘ</span></label>
+        <select id="library">
+          <option value="" selected>— detect or choose —</option>
+          {% for lib in libraries %}<option value="{{ lib }}">{{ lib }}</option>{% endfor %}
+          <option value="__custom__">other (discovery-only)…</option>
+        </select>
+        <input type="text" id="custom-library" class="hidden" placeholder="custom library name">
+        <p class="opt-desc" id="library-desc">Pick the library, or click <strong>Detect library</strong> to identify it from the source.</p>
+
+        <div class="two-col">
+          <div>
+            <label>Mode <span class="tip" title="How hard the scanner works. More stages = slower but more trustworthy.">ⓘ</span></label>
+            <select id="mode">
+              {% for m in modes %}<option value="{{ m }}" {{ 'selected' if m=='agent-review' }}>{{ m }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>AI Provider <span class="tip" title="Where the AI models run. Ollama = local &amp; private. Anthropic = Cloud API (needs a key).">ⓘ</span></label>
+            <select id="backend">
+              {% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <p class="opt-desc" id="mode-desc"></p>
+        <p class="opt-desc" id="backend-desc"></p>
+        <div id="backend-status" class="key-status" style="margin-top:6px">checking AI provider status…</div>
+
+        <div class="two-col">
+          <div>
+            <label>Investigator Model <span class="tip" title="Model used by the investigator agent to hunt for vulnerabilities.">ⓘ</span> <span class="muted">(optional)</span></label>
+            <select id="model-select">
+              <option value="" selected>— default model —</option>
+              <option value="__custom__">other (custom model tag)…</option>
+            </select>
+            <input type="text" id="custom-model" class="hidden" placeholder="e.g. deepseek-r1:14b" style="margin-top:6px">
+          </div>
+          <div id="reviewer-model-container">
+            <label>Reviewer Model <span class="tip" title="Use a separate model for the reviewer agent to get an independent second opinion.">ⓘ</span> <span class="muted">(optional 2nd opinion)</span></label>
+            <select id="reviewer-model-select">
+              <option value="" selected>— same as investigator —</option>
+              <option value="__custom__">other (custom model tag)…</option>
+            </select>
+            <input type="text" id="custom-reviewer-model" class="hidden" placeholder="e.g. llama3:8b" style="margin-top:6px">
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label>Discovery passes <span class="tip" title="Which crypto surfaces to hunt. Default covers all standard PQC surfaces (KEM + signatures + sampling).">ⓘ</span></label>
+          <select id="discovery-passes">
+            <option value="">all surfaces (default: kem, sig, sampling)</option>
+            <option value="kem">kem (key encapsulation only)</option>
+            <option value="sig">sig (signatures only)</option>
+            <option value="sampling">sampling (RNG &amp; reduction only)</option>
+            <option value="pki">pki (provider / cert layer)</option>
+          </select>
+        </div>
+        <p class="opt-desc" id="passes-desc"></p>
+
+        <div id="apikey-row" class="hidden">
+          <p class="hint">Reads <code>ANTHROPIC_API_KEY</code> from server environment. To set: <code>export ANTHROPIC_API_KEY=sk-ant-…</code></p>
+        </div>
+
+        <label class="check"><input type="checkbox" id="explain"> Emit triage log
+          <span class="tip" title="Also records the candidates the scanner looked at and DISMISSED, with reasons. Useful for understanding a clean (0-finding) result.">ⓘ</span></label>
+
+        <label class="check"><input type="checkbox" id="poc"> Generate PoC packages
+          <span class="tip" title="After the scan, draft a documented proof-of-concept package per CONFIRMED finding into runs/&lt;lib&gt;/&lt;ts&gt;/poc/. Nothing is compiled or executed by the assessor.">ⓘ</span></label>
+
+        <div id="poc-options" class="poc-options hidden">
+          <p class="opt-desc">One package per <strong>confirmed</strong> finding, written to
+            <code>runs/&lt;library&gt;/&lt;timestamp&gt;/poc/</code>. Suspected findings are skipped.
+            Adds a stage at the end of the scan.</p>
+
+          <label>PoC AI Provider <span class="tip" title="Where the PoC drafter and critic run. Independent of the scan's own provider — you can scan locally and draft PoCs with Claude, or the reverse.">ⓘ</span></label>
+          <select id="poc-backend">
+            {% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+          </select>
+          <div id="poc-backend-status" class="key-status" style="margin-top:6px">checking AI provider…</div>
+
+          <div class="two-col">
+            <div>
+              <label>PoC drafter model <span class="tip" title="Writes the PoC source.">ⓘ</span> <span class="muted">(optional)</span></label>
+              <select id="poc-drafter-select">
+                <option value="" selected>— provider default —</option>
+              </select>
+              <input type="text" id="custom-poc-drafter" class="hidden" placeholder="e.g. claude-opus-5" style="margin-top:6px">
+            </div>
+            <div>
+              <label>PoC critic model <span class="tip" title="Reviews the drafted PoC before it is written out.">ⓘ</span> <span class="muted">(optional)</span></label>
+              <select id="poc-critic-select">
+                <option value="" selected>— provider default —</option>
+              </select>
+              <input type="text" id="custom-poc-critic" class="hidden" placeholder="e.g. deepseek-r1:14b" style="margin-top:6px">
+            </div>
+          </div>
+
+          <div style="margin-top:10px">
+            <label>Compile-repair rounds <span class="tip" title="After drafting, compile the PoC and feed the errors back for repair. A round is one COMPILE, so N rounds means N-1 repairs. C needs clang/gcc and the library headers; Java needs javac and the library jars (set POC_JAVA_CP to a folder of jars). Skipped, not failed, when those are missing. Nothing is ever run.">ⓘ</span></label>
+            <select id="poc-compile-rounds">
+              <option value="0" selected>0 — draft only (no compiler invoked)</option>
+              <option value="1">1 — check only, no repair</option>
+              <option value="2">2 — check, repair, re-check</option>
+              <option value="3">3 — up to 2 repairs</option>
+            </select>
+          </div>
+
+          <p class="hint" id="poc-lang-hint"></p>
+        </div>
+
+        <div id="doctor" class="doctor"></div>
+
+        <!-- readiness checklist — tells you exactly what's still needed -->
+        <ul id="ready-list" class="ready-list">
+          <li data-req="source"><span class="rl-mark">○</span> A source (GitHub URL or folder)</li>
+          <li data-req="library"><span class="rl-mark">○</span> A library (Detect or choose)</li>
+          <li data-req="tools"><span class="rl-mark">○</span> Required tool <code>ripgrep</code> installed</li>
+          <li data-req="backend"><span class="rl-mark">○</span> AI Provider ready</li>
+        </ul>
+
+        <button id="scan-btn" class="btn btn-primary full" disabled>Run scan</button>
+        <p class="hint" id="scan-hint">Complete the checklist above to enable the scan.</p>
+      </div>
+    </div>
+
+    <!-- ------- live progress ------- -->
+    <div id="progress" class="card progress hidden">
+      <div class="card-h">
+        <span id="prog-title">Scanning…</span>
+        <span id="prog-elapsed" class="mono muted"></span>
+      </div>
+      <div class="prog-state"><span id="prog-badge" class="badge">queued</span>
+        <span id="prog-msg" class="muted"></span></div>
+      <pre id="prog-log" class="logbox"></pre>
+      <div class="prog-actions">
+        <button id="cancel-btn" class="btn btn-ghost">Cancel</button>
+        <a id="view-result" class="btn hidden">View result →</a>
+        <a id="view-pocs" class="btn btn-primary hidden">View PoC packages →</a>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='pocmodels.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

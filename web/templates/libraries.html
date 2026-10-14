@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% set active = 'libraries' %}
+{% block title %}Libraries · PQC Assessor{% endblock %}
+{% block body %}
+<section class="hero compact">
+  <h1>Library definitions</h1>
+  <p class="sub">Each file under <code>libraries/</code> tells the scanner which
+    <strong>source language</strong> and which <strong>entry-point symbols</strong>
+    to anchor on for a library. Edit them here — changes apply to the next scan.</p>
+</section>
+
+<div class="lib-layout">
+  <!-- file list -->
+  <aside class="lib-list">
+    <div class="lib-list-h">Files <span class="muted">({{ libraries|length }})</span></div>
+    <ul id="lib-files">
+      {% for lib in libraries %}
+      <li class="lib-file" data-name="{{ lib.name }}">
+        <span class="lib-file-name">{{ lib.name }}</span>
+        <span class="lib-file-meta">{{ lib.lang }} · {{ lib.entry_points }} eps{% if lib.pki_entry_points %} · {{ lib.pki_entry_points }} pki{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <button id="new-lib" class="btn btn-primary full">+ New library</button>
+  </aside>
+
+  <!-- editor -->
+  <div class="lib-editor">
+    <div class="editor-head">
+      <div class="name-row">
+        <label>Library name</label>
+        <input type="text" id="lib-name" placeholder="mylib" disabled>
+        <span class="muted small">= the <code>--library</code> value</span>
+      </div>
+      <div class="editor-actions">
+        <button id="lib-validate" class="btn btn-ghost" disabled>Validate</button>
+        <button id="lib-save" class="btn btn-primary" disabled>Save</button>
+        <button id="lib-delete" class="btn btn-ghost danger" disabled>Delete</button>
+      </div>
+    </div>
+
+    <div id="lib-status" class="lib-status hidden"></div>
+
+    <textarea id="lib-content" class="code-area" spellcheck="false"
+      placeholder="Select a file on the left, or click “New library”." disabled></textarea>
+
+    <!-- CAPE-style inline help so the format is self-explanatory -->
+    <details class="help" open>
+      <summary>ⓘ What goes in a library file?</summary>
+      <div class="help-body">
+        <p>A library file is <a href="https://toml.io" target="_blank">TOML</a>
+          with up to three keys:</p>
+        <table class="help-table">
+          <tr><th>Key</th><th>Required</th><th>What it does</th></tr>
+          <tr>
+            <td><code>lang</code></td><td>yes</td>
+            <td>Source language — picks which files are searched. One of
+              <code>{{ langs|join('</code>, <code>') }}</code>.</td>
+          </tr>
+          <tr>
+            <td><code>entry_points</code></td><td>recommended</td>
+            <td>The crypto functions the investigator starts from
+              (decaps / encaps / keygen / sign / verify). Prefer <em>unique</em>
+              names — a generic <code>verify</code> can anchor the wrong file.
+              Omit and the scan runs discovery-only.</td>
+          </tr>
+          <tr>
+            <td><code>pki_entry_points</code></td><td>optional</td>
+            <td>Provider-layer anchors (cert-path / OCSP-CRL / keystore). Only
+              used when a scan runs with <code>PQC_DISCOVERY_PASSES=pki</code>.</td>
+          </tr>
+        </table>
+        <p class="muted small">Saving validates the file the same way the scanner
+          loads it — a bad <code>lang</code> or a non-list of strings is rejected,
+          so you can't break a scan from here.</p>
+      </div>
+    </details>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='libraries.js') }}"></script>{% endblock %}

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% set active = 'scans' %}
+{% block title %}{{ run.library }} · {{ run.timestamp }} · PQC Assessor{% endblock %}
+{% block body %}
+
+<a class="back" href="{{ url_for('scans_page') }}">← all scans</a>
+
+<section class="detail-head">
+  <div>
+    <h1><span class="lib-pill lg">{{ run.library }}</span> scan</h1>
+    <p class="target-line mono">{{ run.target or '—' }}
+      {% if run.target_git_commit %}<span class="muted">@{{ run.target_git_commit }}</span>{% endif %}</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-primary"
+        href="{{ url_for('poc_run_page', library=run.library, timestamp=run.timestamp) }}">{% if run.poc_count %}{{ run.poc_count }} PoC package{{ '' if run.poc_count == 1 else 's' }} →{% else %}Generate PoCs →{% endif %}</a>
+    {% if run.has_report_html %}<a class="btn" target="_blank"
+        href="{{ url_for('scan_file', library=run.library, timestamp=run.timestamp, name='report.html') }}">Full report ↗</a>{% endif %}
+    {% if run.has_log %}<a class="btn btn-ghost" target="_blank"
+        href="{{ url_for('scan_file', library=run.library, timestamp=run.timestamp, name='run.log') }}">run.log</a>{% endif %}
+    <a class="btn btn-ghost" target="_blank"
+        href="{{ url_for('scan_file', library=run.library, timestamp=run.timestamp, name='run.json') }}">manifest</a>
+    <button id="delete-scan" class="btn btn-ghost danger"
+            data-id="{{ run.library }}/{{ run.timestamp }}">Delete scan</button>
+  </div>
+</section>
+
+{% if run.interrupted %}
+<div class="banner warn">⚠ This scan was interrupted — results are partial.</div>
+{% endif %}
+
+<!-- meta strip -->
+<div class="metastrip">
+  <div><span class="k">Mode</span><span class="v">{{ run.mode or '—' }}</span></div>
+  <div><span class="k">Backend</span><span class="v">{{ run.backend or '—' }}</span></div>
+  <div><span class="k">Model</span><span class="v mono">{{ run.model or '—' }}</span></div>
+  <div><span class="k">Started</span><span class="v mono">{{ run.started or '—' }}</span></div>
+  <div><span class="k">Duration</span><span class="v mono">{{ '%.1fs'|format(run.duration_seconds) if run.duration_seconds else '—' }}</span></div>
+</div>
+
+{% if run.stage_timings %}
+<div class="timings">
+  {% for s in run.stage_timings %}
+    <span class="meta-pill">{{ s.stage }} · <span class="mono">{{ '%.1fs'|format(s.seconds) }}</span></span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- severity summary -->
+<div class="sev-summary">
+  {% set counts = run.severity_counts %}
+  {% for sev in ['CRITICAL','HIGH','MEDIUM','LOW','INFO'] %}
+    <div class="sev-tile sev-{{ sev|lower }} {{ 'zero' if not counts[sev] }}">
+      <div class="n">{{ counts[sev] }}</div><div class="l">{{ sev|lower }}</div>
+    </div>
+  {% endfor %}
+</div>
+
+{% if run.findings_total == 0 and not run.interrupted %}
+<div class="banner clean-banner">
+  <strong>Clean run — no defects found.</strong> On a hardened library this is a
+  deliberate true-negative, not a failure: the surfaces below were examined and
+  cleared. See the coverage table for exactly what was checked.
+</div>
+{% endif %}
+
+<!-- ---------------- Scope & Coverage ---------------- -->
+{% set cov = run.coverage or {} %}
+{% if cov.entry_points or cov.passes %}
+<section class="block">
+  <h2>Scope &amp; Coverage</h2>
+
+  {% if cov.entry_points %}
+  {% set resolved = cov.entry_points.values()|selectattr('resolved')|list %}
+  <p class="muted">{{ resolved|length }}/{{ cov.entry_points|length }} entry points resolved to source.</p>
+  <div class="table-wrap">
+  <table class="cov">
+    <thead><tr><th>Entry point</th><th>Location</th><th>Disposition</th></tr></thead>
+    <tbody>
+    {% for ep, info in cov.entry_points.items() %}
+      <tr>
+        <td class="mono">{{ ep }}</td>
+        <td class="mono muted small">{{ info.file or '—' }}</td>
+        <td>
+          {% if not info.resolved %}
+            <span class="disp notfound">symbol not found</span>
+          {% else %}
+            <span class="disp cleared">examined — cleared</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+  {% if cov.passes %}
+  <div class="pass-row">
+    {% for p in cov.passes %}
+      <span class="meta-pill">{{ p.label }} · {{ p.risky_lines or 0 }} risky · {{ p.grounded or 0 }} grounded</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ---------------- Findings ---------------- -->
+<section class="block">
+  <h2>Findings <span class="muted">({{ run.findings_total }})</span></h2>
+  {% if not run.findings %}
+    <p class="muted">No findings recorded.</p>
+  {% else %}
+    {% for f in run.findings %}
+    <div class="finding sev-border-{{ (f.severity or 'info')|lower }}">
+      <div class="f-head">
+        <span class="sev sev-{{ (f.severity or 'info')|lower }}">{{ f.severity }}</span>
+        <span class="f-title">{{ f.title }}</span>
+        <span class="f-confidence">{{ f.confidence }}</span>
+      </div>
+      <div class="f-meta">
+        {% if f.file %}<span class="mono">{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</span>{% endif %}
+        {% if f.cwe %}<span class="tag">{{ f.cwe }}</span>{% endif %}
+        {% if f.cvss_score %}<span class="tag">CVSS {{ f.cvss_score }}</span>{% endif %}
+        {% if f.entry_point %}<span class="tag mono">{{ f.entry_point }}</span>{% endif %}
+        {% if f.spec_reference %}<span class="tag">{{ f.spec_reference }}</span>{% endif %}
+      </div>
+      <p class="f-desc">{{ f.description }}</p>
+      {% if f.evidence %}
+      <details class="f-evidence">
+        <summary>{{ f.evidence|length }} evidence excerpt(s)</summary>
+        {% for e in f.evidence %}<pre class="logbox small">{{ e }}</pre>{% endfor %}
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% endif %}
+</section>
+
+<!-- ---------------- Triage log (optional) ---------------- -->
+{% if run.triage %}
+<section class="block">
+  <h2>Triage log <span class="muted">(dismissed candidates · unverified)</span></h2>
+  <div class="table-wrap">
+  <table class="cov">
+    <thead><tr><th>Candidate</th><th>Location</th><th>Reason dismissed</th></tr></thead>
+    <tbody>
+    {% for t in run.triage %}
+      <tr>
+        <td>{{ t.get('candidate') or t.get('title') or '—' }}</td>
+        <td class="mono muted small">{{ t.get('file') or t.get('location') or '—' }}</td>
+        <td class="muted">{{ t.get('reason') or t.get('why') or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const del = document.getElementById('delete-scan');
+  del.addEventListener('click', async () => {
+    const id = del.dataset.id;
+    if (!confirm(`Delete scan ${id}? This removes its report and log.`)) return;
+    const [lib, ts] = id.split('/');
+    const r = await fetch(`/api/scan/${lib}/${ts}/delete`, { method: 'POST' });
+    if (r.ok) location.href = "{{ url_for('scans_page') }}";
+    else alert('Delete failed.');
+  });
+</script>
+{% endblock %}

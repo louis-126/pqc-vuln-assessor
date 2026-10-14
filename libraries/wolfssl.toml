@@ -1,0 +1,12 @@
+# wolfSSL / wolfCrypt (C) — ML-KEM + ML-DSA (Dilithium) primitives.
+lang = "c"
+
+entry_points = [
+    "wc_MlKemKey_Decapsulate",
+    "wc_MlKemKey_DecodePublicKey",
+    "wc_MlKemKey_DecodePrivateKey",
+    "mlkem_check_public",
+    "wc_GenerateSeed",
+    "wc_MlDsaKey_VerifyCtx",
+    "wc_dilithium_verify",
+]

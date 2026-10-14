@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = 'pocs' %}
+{% block title %}PoC Packages · PQC Assessor{% endblock %}
+{% block body %}
+<section class="hero compact head-flex">
+  <div>
+    <h1>Proof-of-Concept packages</h1>
+    <p class="sub">Generated per <strong>confirmed</strong> finding during a scan, into
+       <code>runs/&lt;library&gt;/&lt;timestamp&gt;/poc/</code>. Nothing here has been
+       compiled or executed — you build and run it yourself.</p>
+  </div>
+</section>
+
+{% if not runs %}
+<div class="empty">
+  <p>No completed scans yet.</p>
+  <p class="muted small">PoC packages are generated per <code>CONFIRMED</code> finding —
+     either during a scan (tick <strong>Generate PoC packages</strong> in
+     <em>2 · Library &amp; options</em>) or afterwards, from any run below.</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">Run a scan →</a>
+</div>
+{% else %}
+<div class="table-wrap">
+<table class="runs">
+  <thead>
+    <tr>
+      <th>Library</th><th>When</th><th>Target</th><th>PoC packages</th>
+      <th>Findings</th><th>Model</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in runs %}
+    <tr class="run-row" data-href="{{ url_for('poc_run_page', library=r.library, timestamp=r.timestamp) }}">
+      <td><span class="lib-pill">{{ r.library }}</span></td>
+      <td class="mono">{{ r.timestamp }}</td>
+      <td class="target" title="{{ r.target }}">{{ r.target or '—' }}</td>
+      <td>{% if r.poc_count %}<span class="sev sev-high">{{ r.poc_count }}</span>
+          {% else %}<span class="muted">none — generate →</span>{% endif %}</td>
+      <td>
+        {% if r.findings_total %}
+          <span class="muted">{{ r.findings_total }} finding(s)</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="mono muted">{{ r.model or '—' }}</td>
+      <td class="arrow">→</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.run-row').forEach(row =>
+    row.addEventListener('click', () => { location.href = row.dataset.href; }));
+</script>
+{% endblock %}

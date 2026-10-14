@@ -1,0 +1,33 @@
+# Bouncy Castle (Java). The only library with a PKI / provider-layer surface
+# (enable with PQC_DISCOVERY_PASSES=pki): certificate-path validation, OCSP/CRL
+# revocation, and keystore loading — where fail-open / SSRF / DoS / NPE bugs
+# live, rather than constant-time / lattice-math bugs.
+lang = "java"
+
+entry_points = [
+    "MLKEMExtractor",
+    "extractSecret",
+    "MLKEMGenerator",
+    "MLDSASigner",
+    "verifySignature",
+    "implVerify",
+    "decodePublicKey",
+    # SLH-DSA (SPHINCS+, FIPS 205)
+    "SLHDSASigner",
+    "SLHDSAKeyPairGenerator",
+]
+
+# Provider-layer entry points for the 'pki' discovery surface. Anchor on
+# cert-path validation / revocation / keystore loading rather than crypto
+# primitives. On other libraries the pki pass simply gathers nothing.
+pki_entry_points = [
+    # OCSP revocation — fail-open signature check
+    "validatedOcspResponse", "getSignerCert", "responderMatches",
+    # certificate-path validation — null-guard / trust-anchor DoS
+    "checkCertificate", "engineValidate", "findTrustAnchor",
+    # CRL distribution-point fetch — SSRF + unbounded response
+    "getCrls", "getCrl", "getCrlsFromLDAP",
+    "getAdditionalStoresFromCRLDistributionPoint",
+    # PKCS#12 keystore load — iteration-count CPU DoS
+    "validateIterationCount", "engineLoad",
+]

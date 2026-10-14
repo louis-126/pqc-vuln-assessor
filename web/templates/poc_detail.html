@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% set active = 'pocs' %}
+{% block title %}{{ pkg.id }} · PoC{% endblock %}
+{% block body %}
+<section class="hero compact head-flex">
+  <div>
+    <h1><span class="mono">{{ pkg.id }}</span>
+      <span class="badge poc-{{ pkg.status }}">{{ pkg.status.replace('_', ' ') }}</span></h1>
+    {% if pkg.finding.title %}
+      <p class="sub">{{ pkg.finding.title }}
+        {% if pkg.finding.cwe %}<span class="muted mono">· {{ pkg.finding.cwe }}</span>{% endif %}</p>
+    {% endif %}
+  </div>
+  <div class="poc-actions">
+    <a class="btn btn-ghost" href="{{ url_for('poc_run_page', library=library, timestamp=timestamp) }}">← All PoCs for this run</a>
+    <a class="btn btn-primary" href="{{ url_for('poc_download_zip', library=library, timestamp=timestamp, poc_id=pkg.id) }}">Download .zip</a>
+  </div>
+</section>
+
+<div class="poc-tabs" id="poc-tabs">
+  {% for f in pkg.files %}
+    <button class="tab {{ 'active' if loop.first }}" data-file="{{ f.name }}">{{ f.name }}</button>
+  {% endfor %}
+</div>
+
+{% for f in pkg.files %}
+  <div class="poc-pane {{ 'active' if loop.first }}" data-pane="{{ f.name }}">
+    <div class="poc-pane-head">
+      <span class="mono muted">{{ f.name }} · {{ f.size }} B</span>
+      <a class="btn btn-ghost small"
+         href="{{ url_for('poc_file', library=library, timestamp=timestamp, poc_id=pkg.id, name=f.name) }}">Download</a>
+    </div>
+    <pre class="codebox"><code>{{ pkg.contents.get(f.name, '(binary or unreadable)') }}</code></pre>
+  </div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const tabs = document.querySelectorAll('#poc-tabs .tab');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.poc-pane').forEach(p =>
+      p.classList.toggle('active', p.dataset.pane === t.dataset.file));
+  }));
+</script>
+{% endblock %}

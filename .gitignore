@@ -1,0 +1,66 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Run outputs / generated artifacts ---
+runs/
+*.log
+
+# --- Web frontend: cloned/uploaded scan targets (can be large) ---
+web/workspaces/
+
+# --- Virtualenv created IN the project root (python3 -m venv .) ---
+# Anchored with a leading slash so a real source dir named lib/ or bin/ under a
+# subpackage is never accidentally ignored.
+/bin/
+/lib/
+/lib64/
+/include/
+/share/
+/pyvenv.cfg
+CACHEDIR.TAG
+
+# --- PoC testbed build artifacts (machine-local; not source) ---
+built/
+tools/template/poc_server
+tools/template/poc_client
+poc_server
+poc_client
+
+# --- Joern CPG artifacts (can be dropped in CWD) ---
+cpg.bin
+workspace/
+pqc_joern/
+
+# --- Archives / local backups (not source) ---
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+
+# --- Secrets / local environment ---
+.env
+.env.*
+*.key
+*.pem
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Cloned repos for frontend ---
+web/workspaces/

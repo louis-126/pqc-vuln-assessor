@@ -1,0 +1,22 @@
+# liboqs (C) — Open Quantum Safe. Dispatch layer + OQS wrappers + the vendored
+# PQClean implementations (the real crypto code static analysis must reach).
+lang = "c"
+
+entry_points = [
+    # Dispatch layer (src/kem/kem.c, src/sig/sig.c)
+    "OQS_KEM_decaps",
+    "OQS_KEM_keypair",
+    "OQS_SIG_verify",
+    "OQS_SIG_sign",
+    # OQS thin wrappers per algorithm (src/kem/ml_kem/kem_ml_kem.c)
+    "OQS_KEM_ml_kem",
+    "OQS_SIG_ml_dsa",
+    # PQClean vendored implementations
+    # (src/kem/ml_kem/pqclean_mlkem*/clean/kem.c) — the REAL crypto code that
+    # static analysis must reach.
+    "crypto_kem_dec",
+    "crypto_kem_enc",
+    "crypto_kem_keypair",
+    "crypto_sign_signature",
+    "crypto_sign_verify",
+]

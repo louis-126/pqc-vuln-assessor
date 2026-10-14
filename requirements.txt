@@ -1,0 +1,36 @@
+# PQC Vulnerability Assessor — Python dependencies
+#
+# Install:  python3 -m pip install -r requirements.txt
+#
+# The runtime footprint is deliberately tiny: the LLM backend talks to Ollama
+# over plain HTTP, and code search/reading is done by shelling out to system
+# binaries (see "System binaries" below) rather than Python libraries.
+
+# --- Required (all run modes) -------------------------------------------------
+httpx            # HTTP client for the Ollama backend (core/llm.py). Only hard dep.
+
+# --- Web frontend (python3 web/app.py) ----------------------------------------
+# Only the optional browser UI needs this; the CLI does not import it. Kept here
+# so a single `pip install -r requirements.txt` covers both — the web runner
+# launches scans as a subprocess of the SAME interpreter, so httpx (above) and
+# Flask must live in one environment.
+Flask>=3.0
+
+# --- Optional -----------------------------------------------------------------
+# liboqs-python: only the `differential` phase imports this (agents/differential.py)
+# to cross-check against reference KEM/sig implementations. Discovery / --compare-models
+# / --mode reason runs do NOT need it. Install separately if you run that phase:
+#   pip install oqs            # requires a built liboqs on the system
+# oqs
+
+# --- System binaries (NOT pip-installable — use your OS package manager) ------
+#   ripgrep ("rg")  REQUIRED — the tools layer shells out to `rg` for all code
+#                   search/reading (core/tools.py).   apt install ripgrep
+#   clang           only for the fuzzing/timing/reproduction phases (compiles
+#                   harnesses against the target).    apt install clang
+#   joern           OPTIONAL CPG slicing, opt-in via PQC_ENABLE_JOERN=1; absent
+#                   it falls back to ripgrep.          https://joern.io
+#
+# Also required at runtime: a running Ollama server reachable at
+# http://localhost:11434 with the investigator models pulled
+# (e.g. `ollama pull deepseek-r1:14b`).

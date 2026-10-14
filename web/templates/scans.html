@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% set active = 'scans' %}
+{% block title %}Scan History · PQC Assessor{% endblock %}
+{% block body %}
+<section class="hero compact head-flex">
+  <div>
+    <h1>Scan history</h1>
+    <p class="sub">Every run written to <code>runs/</code>. Newest first.</p>
+  </div>
+  <button id="clear-all" class="btn btn-ghost danger">Clear all runs &amp; clones</button>
+</section>
+
+{% if not runs %}
+<div class="empty">
+  <p>No scans yet.</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">Run your first scan →</a>
+</div>
+{% else %}
+<div class="table-wrap">
+<table class="runs">
+  <thead>
+    <tr>
+      <th>Library</th><th>When</th><th>Target</th><th>Mode</th>
+      <th>Model</th><th>Findings</th><th>Duration</th><th></th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in runs %}
+    <tr class="run-row" data-href="{{ url_for('detail_page', library=r.library, timestamp=r.timestamp) }}">
+      <td><span class="lib-pill">{{ r.library }}</span></td>
+      <td class="mono">{{ r.timestamp }}</td>
+      <td class="target" title="{{ r.target }}">{{ r.target or '—' }}
+        {% if r.target_git_commit %}<span class="muted mono">@{{ r.target_git_commit }}</span>{% endif %}</td>
+      <td>{{ r.mode or '—' }}</td>
+      <td class="mono muted">{{ r.model or '—' }}</td>
+      <td>
+        {% if r.findings_total %}
+          {% set sev = r.top_severity %}
+          <span class="sev sev-{{ (sev or 'info')|lower }}">{{ r.findings_total }}</span>
+          {% if sev %}<span class="muted">{{ sev|lower }}</span>{% endif %}
+        {% elif r.interrupted %}
+          <span class="muted">interrupted</span>
+        {% else %}
+          <span class="clean">clean ✓</span>
+        {% endif %}
+      </td>
+      <td class="mono muted">{{ '%.0fs'|format(r.duration_seconds) if r.duration_seconds else '—' }}</td>
+      <td class="arrow">→</td>
+      <td><button class="del-btn" title="Delete this scan"
+                  data-id="{{ r.library }}/{{ r.timestamp }}">✕</button></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Row click → open detail (but not when the delete button was clicked).
+  document.querySelectorAll('.run-row').forEach(row =>
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.del-btn')) return;
+      location.href = row.dataset.href;
+    }));
+
+  // Per-row delete.
+  document.querySelectorAll('.del-btn').forEach(btn =>
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (!confirm(`Delete scan ${id}? This removes its report and log.`)) return;
+      const [lib, ts] = id.split('/');
+      const r = await fetch(`/api/scan/${lib}/${ts}/delete`, { method: 'POST' });
+      if (r.ok) {
+        const row = btn.closest('tr'); row.remove();
+        if (!document.querySelectorAll('.run-row').length) location.reload();
+      } else { alert('Delete failed.'); }
+    }));
+
+  // Clear all: every run under runs/ + cached repo clones in web/workspaces/.
+  const clearBtn = document.getElementById('clear-all');
+  if (clearBtn) clearBtn.addEventListener('click', async () => {
+    if (!confirm('Delete ALL scan results AND cached repo clones? This frees '
+                 + 'disk but cannot be undone.')) return;
+    const r = await fetch('/api/scans/clear', { method: 'POST' });
+    if (!r.ok) { alert('Clear failed.'); return; }
+    const d = await r.json();
+    alert(`Cleared ${d.runs} run(s) and ${d.workspaces.dirs} clone(s) `
+          + `(${d.workspaces.freed_mb} MB freed).`);
+    location.reload();
+  });
+</script>
+{% endblock %}

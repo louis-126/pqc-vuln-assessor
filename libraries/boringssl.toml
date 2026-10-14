@@ -1,0 +1,33 @@
+# BoringSSL (C/C++). Note: lang = "boringssl" selects a wider glob set
+# (*.cc.inc, *.inc) via LANG_GLOBS, not the plain "c" set.
+lang = "boringssl"
+
+entry_points = [
+    # Crypto-primitive symbols (verified against C:\Users\tingc\boringssl —
+    # every one of these confirmed present via direct grep, 2026-07). Kept
+    # first: detect.py's web-UI probe only checks the first 12 entries, and
+    # these are the most reliably distinctive across small, easily-reached
+    # files (include/openssl/*.h, crypto/mlkem/, crypto/mldsa/).
+    "MLKEM768_decap",
+    "MLKEM768_encap",
+    "MLKEM768_parse_public_key",
+    "MLKEM1024_decap",
+    "MLDSA65_verify",
+    "BCM_mlkem768_decap",
+    "X25519MLKEM768KeyShare",
+    "ssl_ext_key_share_parse_clienthello",
+    "ssl_ext_key_share_parse_serverhello",
+    "tls1_get_shared_group",
+    "do_select_session",
+    "do_read_second_client_hello",
+    # Handshake/protocol-layer symbols (ssl/tls13_client.cc,
+    # ssl/tls13_server.cc) -- beyond detect.py's first-12 probe window, but
+    # still feed the scanner's default entry-point list, so keep them: this
+    # is exactly the surface BS-01/BS-02/BS-03 and the second-HRR
+    # false-positive investigation lived in.
+    "do_read_hello_retry_request",
+    "do_read_server_hello",
+    "do_send_hello_retry_request",
+    "UpdateForHelloRetryRequest",
+    "ssl_verify_psk_binder",
+]

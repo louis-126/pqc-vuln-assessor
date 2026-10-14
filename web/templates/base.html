@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PQC Vulnerability Assessor{% endblock %}</title>
+  <script>
+    (function() {
+      const saved = localStorage.getItem("pqc_theme") ||
+        (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.setAttribute("data-theme", saved);
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Top buffering progress bar -->
+  <div id="page-loader-bar" class="page-loader-bar"></div>
+
+  <!-- Page buffering / action loading circle overlay -->
+  <div id="page-spinner-overlay" class="spinner-overlay">
+    <div class="spinner-box">
+      <div class="loading-circle"></div>
+      <div id="spinner-text" class="spinner-text">Loading…</div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="logo">⬡</span>
+      <span class="brand-text">PQC&nbsp;Assessor</span>
+    </a>
+    <nav>
+      <a href="{{ url_for('index') }}" class="{{ 'active' if active=='new' }}">New&nbsp;Scan</a>
+      <a href="{{ url_for('scans_page') }}" class="{{ 'active' if active=='scans' }}">Scan&nbsp;History</a>
+      <a href="{{ url_for('pocs_page') }}" class="{{ 'active' if active=='pocs' }}">PoCs</a>
+      <a href="{{ url_for('libraries_page') }}" class="{{ 'active' if active=='libraries' }}">Libraries</a>
+    </nav>
+    
+    <div class="topbar-actions">
+      <button type="button" id="theme-toggle" class="theme-btn" title="Toggle Light / Dark theme">
+        <span class="theme-icon-dark">🌙 Dark</span>
+        <span class="theme-icon-light">☀️ Light</span>
+      </button>
+      <div class="topbar-note">local · read-only source analysis</div>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block body %}{% endblock %}
+  </main>
+
+  <footer class="foot">
+    Post-quantum crypto (ML-KEM / ML-DSA / SLH-DSA) assessor —
+    web frontend over the CLI. Reports are advisory; verify before disclosure.
+  </footer>
+
+  <script>
+    // Theme toggle & page buffering loader
+    (function() {
+      const toggle = document.getElementById("theme-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", function() {
+          const curr = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+          const next = curr === "light" ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", next);
+          localStorage.setItem("pqc_theme", next);
+        });
+      }
+
+      // Page buffering loader bar & spinner overlay helpers
+      window.showSpinner = function(msg) {
+        const overlay = document.getElementById("page-spinner-overlay");
+        const txt = document.getElementById("spinner-text");
+        if (txt) txt.textContent = msg || "Loading…";
+        if (overlay) overlay.classList.add("active");
+      };
+      window.hideSpinner = function() {
+        const overlay = document.getElementById("page-spinner-overlay");
+        if (overlay) overlay.classList.remove("active");
+      };
+
+      // Show buffering loader on link navigation
+      document.addEventListener("click", function(e) {
+        const link = e.target.closest("a");
+        if (link && link.href && !link.target && !link.href.startsWith("javascript:") && !link.href.includes("#")) {
+          const bar = document.getElementById("page-loader-bar");
+          if (bar) bar.classList.add("active");
+        }
+      });
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,34 @@
+# CIRCL (Go) — Cloudflare's crypto library. v2 addition.
+lang = "go"
+
+# Entry points are ripgrep patterns; the resolver ranks the hits and gathers the
+# best implementation of each into the entry-point (kem / "all") discovery pass.
+# Bare symbols bind to the highest-scoring definition, which favours source
+# trees under internal/ — so a bare "Verify" resolves to an internal Dilithium /
+# blindrsa verifier, NOT the combined EdDilithium wrapper. The qualified tokens
+# below (mode2.Verify / mode3.Verify) are unique to the EdDilithium Verify bodies
+# and pin the process-crash DoS (CI-01 / CI-02) that a bare "Verify" misses.
+# NOTE: these seed the entry-point passes (kem / all). To have them examined,
+# run with PQC_DISCOVERY_PASSES=all (gathers entry points AND scans every surface).
+entry_points = [
+    # --- KEM: decapsulation / encapsulation / keygen (FO implicit rejection,
+    #     ciphertext & shared-secret handling) ---
+    "Decapsulate",
+    "Encapsulate",
+    "DecapsulateTo",        # real ML-KEM/Kyber/X-Wing/FRODO decaps core (FO reject)
+    "EncapsulateTo",
+    "GenerateKey",
+    "NewKeyFromSeed",       # deterministic keygen — seed handling
+
+    # --- Signatures: sign / verify (malleability, length & bound validation) ---
+    "Sign",
+    "Verify",
+    "SignTo",               # signing core — unguarded signature-buffer slice
+    "mode2.Verify",         # PINS EdDilithium2.Verify DoS — signature[:mode2.SignatureSize] (CI-01)
+    "mode3.Verify",         # PINS EdDilithium3.Verify DoS — signature[:mode3.SignatureSize] (CI-02)
+
+    # --- Key / blob decode: length validation before unpacking ---
+    "Unpack",               # key/signature unpack — the length-guard site
+    "UnmarshalBinaryPublicKey",
+    "UnmarshalBinaryPrivateKey",
+]

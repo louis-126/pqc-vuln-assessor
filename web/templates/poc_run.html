@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% set active = 'pocs' %}
+{% block title %}PoCs · {{ run.library }} {{ run.timestamp }}{% endblock %}
+{% block body %}
+<section class="hero compact head-flex">
+  <div>
+    <h1>PoC packages — <span class="lib-pill">{{ run.library }}</span>
+      <span class="mono muted">{{ run.timestamp }}</span></h1>
+    <p class="sub">Target: <code>{{ run.target or '—' }}</code></p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('detail_page', library=run.library, timestamp=run.timestamp) }}">
+    ← Back to scan result</a>
+</section>
+
+<!-- ------- generate / regenerate, no re-scan ------- -->
+<div class="card poc-gen">
+  <div class="card-h">
+    {{ 'Regenerate packages' if packages else 'Generate PoC packages' }}
+  </div>
+  <p class="opt-desc">
+    Drafts a package for each <strong>confirmed</strong> finding in this run, reading its
+    <code>report.json</code> — no re-scan. Needs the scanned source tree still on disk.
+  </p>
+
+  <label>AI Provider <span class="tip" title="Where the PoC drafter and critic run. Anthropic bills your API key; Ollama runs locally and must be started.">ⓘ</span></label>
+  <select id="gen-backend">
+    {% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+  </select>
+  <div id="gen-backend-status" class="key-status" style="margin-top:6px">checking AI provider…</div>
+
+  <div class="two-col">
+    <div>
+      <label>Drafter model <span class="tip" title="Writes the PoC source.">ⓘ</span></label>
+      <select id="gen-drafter"><option value="">— provider default —</option></select>
+      <input type="text" id="gen-drafter-custom" class="hidden"
+             placeholder="e.g. claude-opus-4-8" style="margin-top:6px">
+    </div>
+    <div>
+      <label>Critic model <span class="tip" title="Reviews the draft before it is written out.">ⓘ</span></label>
+      <select id="gen-critic"><option value="">— provider default —</option></select>
+      <input type="text" id="gen-critic-custom" class="hidden"
+             placeholder="e.g. deepseek-r1:14b" style="margin-top:6px">
+    </div>
+  </div>
+  <p class="hint" id="gen-models-note"></p>
+
+  <div class="two-col" style="margin-top:10px">
+    <div>
+      <label>Compile-repair rounds <span class="tip" title="A round is one COMPILE, so N rounds means N-1 repairs. C uses clang; Java uses javac against the library jars (set POC_JAVA_CP to a folder of jars). Skipped, not failed, when the compiler or jars are missing. Nothing is ever run.">ⓘ</span></label>
+      <select id="gen-rounds">
+        <option value="0" selected>0 — draft only</option>
+        <option value="1">1 — check only, no repair</option>
+        <option value="2">2 — check, repair, re-check</option>
+        <option value="3">3 — up to 2 repairs</option>
+      </select>
+    </div>
+    <div>
+      <label>Existing packages</label>
+      <select id="gen-overwrite">
+        <option value="1" selected>replace them</option>
+        <option value="0">keep them (skip findings that already have one)</option>
+      </select>
+    </div>
+  </div>
+
+  <button id="gen-btn" class="btn btn-primary full" style="margin-top:12px">
+    {{ 'Regenerate' if packages else 'Generate' }} PoC packages</button>
+  <p class="hint" id="gen-hint"></p>
+
+  <div id="gen-progress" class="progress hidden" style="margin-top:12px">
+    <div class="prog-state"><span id="gen-badge" class="badge">queued</span>
+      <span id="gen-msg" class="muted"></span>
+      <span id="gen-elapsed" class="mono muted"></span></div>
+    <pre id="gen-log" class="logbox small"></pre>
+  </div>
+</div>
+
+{% if not packages %}
+<div class="empty">
+  <p>This run has no PoC packages yet.</p>
+  <p class="muted small">Only findings the reviewer marked <code>CONFIRMED</code> get a
+     package — suspected ones are skipped by design.</p>
+</div>
+{% else %}
+<div class="poc-grid">
+  {% for p in packages %}
+  <div class="card poc-card">
+    <div class="card-h">
+      <span class="mono">{{ p.id }}</span>
+      <span class="badge poc-{{ p.status }}">{{ p.status.replace('_', ' ') }}</span>
+    </div>
+
+    {% if p.finding.title %}
+      <div class="poc-title">{{ p.finding.title }}</div>
+      <div class="poc-meta">
+        {% if p.finding.severity %}
+          <span class="sev sev-{{ p.finding.severity|lower }}">{{ p.finding.severity }}</span>
+        {% endif %}
+        {% if p.finding.cwe %}<span class="muted mono">{{ p.finding.cwe }}</span>{% endif %}
+      </div>
+      {% if p.finding.file %}
+        <div class="poc-file mono muted" title="{{ p.finding.file }}">{{ p.finding.file }}</div>
+      {% endif %}
+    {% else %}
+      <div class="poc-title muted">No matching finding in report.json</div>
+    {% endif %}
+
+    <ul class="poc-files">
+      {% for f in p.files %}
+      <li><span class="mono">{{ f.name }}</span>
+          <span class="muted small">{{ f.size }} B</span></li>
+      {% endfor %}
+    </ul>
+
+    <div class="poc-actions">
+      <a class="btn" href="{{ url_for('poc_detail_page', library=run.library, timestamp=run.timestamp, poc_id=p.id) }}">Open →</a>
+      <a class="btn btn-ghost" href="{{ url_for('poc_download_zip', library=run.library, timestamp=run.timestamp, poc_id=p.id) }}">Download .zip</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<p class="hint" style="margin-top:14px">
+  These packages are drafted by a model and are <strong>not</strong> compiled or run by the
+  assessor. Read <code>README.md</code> first, then build with <code>build.sh</code>.
+  Run them only against your own test target.
+</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='pocmodels.js') }}"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const RUN = "{{ run.library }}/{{ run.timestamp }}";
+  let poll = null;
+
+  // Provider + model pickers: the shared component in pocmodels.js, the same one
+  // the scan form's PoC block uses. It opens on the provider matching the model
+  // this run was scanned with, so the obvious choice is already selected.
+  const models = window.initPocModels({
+    provider: "#gen-backend",
+    status: "#gen-backend-status",
+    fields: {
+      drafter: { sel: "#gen-drafter", custom: "#gen-drafter-custom" },
+      critic: { sel: "#gen-critic", custom: "#gen-critic-custom" },
+    },
+    preferModel: {{ (run.model or '')|tojson }},
+    onChange: updateNote,
+  });
+
+  function updateNote() {
+    const backend = $("#gen-backend").value;
+    const parts = [window.pocProviderNote(backend)];
+    const warn = window.pocProviderMismatch(
+      backend, [models.value("drafter"), models.value("critic")].filter(Boolean));
+    if (warn) parts.push(warn);
+    $("#gen-models-note").innerHTML = parts.filter(Boolean).join(" ");
+  }
+  updateNote();
+
+  $("#gen-btn").addEventListener("click", async () => {
+    const body = {
+      poc_drafter_model: models.value("drafter"),
+      poc_critic_model: models.value("critic"),
+      poc_compile_rounds: parseInt($("#gen-rounds").value, 10) || 0,
+      overwrite: $("#gen-overwrite").value === "1",
+    };
+    $("#gen-hint").textContent = "";
+    $("#gen-btn").disabled = true;
+    try {
+      const r = await fetch(`/api/scan/${RUN}/pocs/generate`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      $("#gen-progress").classList.remove("hidden");
+      watch(d.id);
+    } catch (e) {
+      $("#gen-btn").disabled = false;
+      $("#gen-hint").textContent = "Could not start: " + e.message;
+    }
+  });
+
+  function watch(jobId) {
+    clearInterval(poll);
+    poll = setInterval(async () => {
+      const j = await (await fetch(`/api/job/${jobId}`)).json();
+      if (j.error) { clearInterval(poll); $("#gen-btn").disabled = false; return; }
+      $("#gen-badge").className = "badge " + j.state;
+      $("#gen-badge").textContent = j.state;
+      $("#gen-msg").textContent = j.message || "";
+      $("#gen-elapsed").textContent = j.elapsed + "s";
+      const log = $("#gen-log");
+      log.textContent = (j.log_tail || []).join("\n");
+      log.scrollTop = log.scrollHeight;
+      if (["done", "failed", "interrupted"].includes(j.state)) {
+        clearInterval(poll);
+        $("#gen-btn").disabled = false;
+        // Reload so the package grid reflects what was just written.
+        if (j.state === "done") setTimeout(() => location.reload(), 1200);
+      }
+    }, 1500);
+  }
+})();
+</script>
+{% endblock %}
